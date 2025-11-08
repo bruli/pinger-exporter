@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # 3) Build (cache de compilació)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/pinger-exporter ./cmd/pinger-exporter
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/pinger-exporter ./cmd/exporter
 
 # --- runtime ---
 FROM alpine:3.22
