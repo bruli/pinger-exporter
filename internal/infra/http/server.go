@@ -14,7 +14,7 @@ const PortAddr = ":8080"
 func Run(nc *nats.Conn, log *zerolog.Logger) {
 	http.Handle("/metrics", promhttp.Handler())
 
-	http.HandleFunc("/healtz", func(w http.ResponseWriter, _ *http.Request) {
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		if nc.IsConnected() {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("ok"))
