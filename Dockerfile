@@ -16,11 +16,10 @@ RUN go mod download
 COPY . .
 
 # 3) Build (cache de compilació)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/alerter ./cmd/alerter
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/pinger-exporter ./cmd/pinger-exporter
 
 # --- runtime ---
 FROM alpine:3.22
-# copia el teu binari
-COPY --from=builder /out/alerter /usr/local/bin/alerter
+COPY --from=builder /out/pinger-exporter /usr/local/bin/pinger-exporter
 
-ENTRYPOINT ["/usr/local/bin/alerter"]
+ENTRYPOINT ["/usr/local/bin/pinger-exporter"]

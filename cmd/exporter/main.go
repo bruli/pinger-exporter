@@ -1,111 +1,66 @@
 package main
 
 import (
-	"log"
-	"net/http"
+	"context"
 	"os"
+	"os/signal"
 
+	"github.com/bruli/pinger-exporter/internal/app"
+	"github.com/bruli/pinger-exporter/internal/config"
+	infrahttp "github.com/bruli/pinger-exporter/internal/infra/http"
+	infranats "github.com/bruli/pinger-exporter/internal/infra/nats"
+	infraprom "github.com/bruli/pinger-exporter/internal/infra/prometheus"
 	"github.com/bruli/pinger/pkg/events"
 	"github.com/nats-io/nats.go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/protobuf/proto"
+	"github.com/rs/zerolog"
 )
-
-var (
-	eventsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pinger_events_total",
-			Help: "Nombre total d'events pinger processats",
-		},
-		[]string{"resource"},
-	)
-	latencyHist = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "pinger_latency_seconds",
-			Help:    "Latència observada pels recursos (en segons)",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 150),
-		},
-		[]string{"resource"},
-
-	)
-	lastEventTs = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "pinger_last_event_timestamp_seconds",
-			Help: "Epoch del darrer event rebut per recurs",
-		},
-		[]string{"resource"},
-	)
-)
-
-func parseSeconds(e *events.PingResult) (float64, bool) {
-	return float64(e.GetLatency() / 1000), true
-}
-
-func mustEnv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
 
 func main() {
-	prometheus.MustRegister(eventsTotal, latencyHist, lastEventTs)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
-	natsURL := mustEnv("NATS_URL", "nats://nats:4222")
-	subject := mustEnv("NATS_SUBJECT", events.PingSubjet)
-	httpAddr := mustEnv("LISTEN_ADDR", ":8080")
+	log := buildLogger()
 
-	// Connexió a NATS
-	nc, err := nats.Connect(natsURL, nats.Name("pinger-prom-exporter"))
+	conf, err := config.New()
 	if err != nil {
-		log.Fatalf("Error connectant a NATS: %v", err)
-	}
-	defer nc.Drain()
-
-	// Subscriure'ns als events
-	_, err = nc.Subscribe(subject, func(msg *nats.Msg) {
-		var e events.PingResult
-		if err = proto.Unmarshal(msg.Data, &e); err != nil {
-			// Si vols admetre format "resource=...,latency_ms=..." molt simple:
-			// intenta un parse fallback aquí.
-			log.Printf("PROTOBUFF invàlid: %v", err)
-			return
-		}
-		if e.Resource == "" {
-			log.Printf("Event sense resource, ignorat")
-			return
-		}
-		if sec, ok := parseSeconds(&e); ok {
-			eventsTotal.WithLabelValues(e.Resource).Inc()
-			latencyHist.WithLabelValues(e.Resource).Observe(sec)
-			lastEventTs.WithLabelValues(e.Resource).Set(float64(e.GetCreatedAt().AsTime().Unix()))
-
-			eventsTotal.WithLabelValues(e.Status).Inc()
-			latencyHist.WithLabelValues(e.Status).Observe(sec)
-			lastEventTs.WithLabelValues(e.Status).Set(float64(e.GetCreatedAt().AsTime().Unix()))
-		} else {
-			log.Printf("Event sense latència: %+v", &e)
-		}
-	})
-	if err != nil {
-		log.Fatalf("Error subscrivint-se a %s: %v", subject, err)
+		log.Err(err).Msg("configuration error")
+		os.Exit(1)
 	}
 
-	// /metrics
-	http.Handle("/metrics", promhttp.Handler())
+	natsUrl := conf.NatsServerURL
+	nc, err := nats.Connect(natsUrl)
+	if err != nil {
+		log.Err(err).Msg("failed to connect to nats")
+		os.Exit(1)
+	}
+	log.Info().Msgf("connected to NATS server %s", natsUrl)
+	defer func() {
+		_ = nc.Drain()
+		nc.Close()
+	}()
 
-	// /ready per readinessProbe (minim)
-	http.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
-		if nc.IsConnected() {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-			return
-		}
-		w.WriteHeader(http.StatusServiceUnavailable)
-	})
+	resourceMetricRepo := infraprom.NewResourceMetricRepository()
+	logCHMdw := app.NewLogCommandHandlerMiddleware(log)
+	createResourceMetricCH := logCHMdw(app.NewCreateResourceMetric(resourceMetricRepo))
+	consumer := infranats.NewPingResultConsumer(ctx, createResourceMetricCH, log)
 
-	log.Printf("Escoltant %s (raspatge Prometheus a /metrics). NATS=%s subject=%s",
-		httpAddr, natsURL, subject)
-	log.Fatal(http.ListenAndServe(httpAddr, nil))
+	subject := events.PingSubjet
+
+	sub, err := nc.Subscribe(subject, consumer.Consume)
+	if err != nil {
+		log.Err(err).Msg("failed to subscribe to subject")
+	}
+	defer func() {
+		_ = sub.Unsubscribe()
+	}()
+
+	log.Info().Msgf("subscribed to subject %s", subject)
+
+	infrahttp.Run(nc, log)
+}
+
+func buildLogger() *zerolog.Logger {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	return &log
 }

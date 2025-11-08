@@ -12,8 +12,11 @@ tool (
 
 require (
 	github.com/bruli/pinger v0.2.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/nats-io/nats.go v1.47.0
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rs/zerolog v1.34.0
+	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.8
 )
 
@@ -190,7 +193,6 @@ require (
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.2.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/tetafro/godot v1.5.4 // indirect
 	github.com/timakin/bodyclose v0.0.0-20241222091800-1db5c5ca4d67 // indirect

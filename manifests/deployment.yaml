@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    namespace: pinger-exporter
+    labels:
+        app: pinger-exporter
+    name: pinger-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pinger-exporter
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: pinger-exporter
+    spec:
+      containers:
+      - image: ghcr.io/bruli/pinger-exporter:0.1.0
+        name: pinger-exporter
+        imagePullPolicy: IfNotPresent
+        ports:
+            - name: http
+              containerPort: 8080
+        env:
+            - { name: TZ, value: Europe/Madrid }
+            - name: NATS_SERVER_URL
+              value: nats://nats.nats.svc.cluster.local:4222
+        readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+        livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+        resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }

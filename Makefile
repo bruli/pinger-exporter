@@ -39,9 +39,8 @@ docker-ps:
 
 docker-exec:
 	@set -euo pipefail; \
-	test -n "${SVC:-}" || { echo "❌ Please specify SVC=<service>"; exit 2; }; \
-	echo "🔎 Opening shell inside $$SVC..."; \
-	$(DOCKER_COMPOSE) exec $$SVC sh
+	echo "🔎 Opening shell inside $(APP)..."; \
+	$(DOCKER_COMPOSE) exec $(APP) sh
 
 docker-logs:
 	@set -euo pipefail; \

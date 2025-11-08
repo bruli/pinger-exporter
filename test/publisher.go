@@ -30,7 +30,7 @@ func main() {
 		msg := events.PingResult{
 			Resource:  resource,
 			Status:    "Failed",
-			Latency:   float32(100 + i),
+			Latency:   float32(100 + n),
 			CreatedAt: now,
 		}
 

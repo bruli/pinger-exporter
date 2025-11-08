@@ -7,7 +7,7 @@ services:
         volumes:
           - .:/app
         environment:
-            - NATS_SERVER_URL=nats://exporter-nats:4222
+            - NATS_SERVER_URL=nats://nats:4222
         ports:
           - "8086:8080"
     nats:
