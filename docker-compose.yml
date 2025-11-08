@@ -1,0 +1,32 @@
+services:
+    pinger-exporter:
+        build:
+          context: .
+          dockerfile: Dockerfile-dev
+        container_name: pinger-exporter
+        volumes:
+          - .:/app
+        environment:
+            - NATS_SERVER_URL=nats://exporter-nats:4222
+        ports:
+          - "8086:8080"
+    nats:
+        image: nats:2-alpine
+        container_name: exporter_nats
+        # No afegim -js (JetStream) -> NATS bàsic efímer
+        command: ["--http_port", "8222"] # endpoint /varz, /connz, etc.
+        ports:
+          - "4222:4222" # client
+          - "8222:8222" # monitoring HTTP
+          # - "6222:6222" # (opcional) clustering
+        restart: unless-stopped
+
+    nats-box:
+        image: synadia/nats-box:latest
+        container_name: exporter_nats-box
+        depends_on:
+            - nats
+        stdin_open: true
+        tty: true
+        # Queda "idle" perquè hi puguis entrar amb exec
+        entrypoint: ["sh", "-lc", "sleep infinity"]
