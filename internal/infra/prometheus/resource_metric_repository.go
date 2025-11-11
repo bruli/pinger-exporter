@@ -49,7 +49,7 @@ func NewResourceMetricRepository() *ResourceMetricRepository {
 			[]string{"resource"}),
 		eventsByStatusTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "pinger_events_total_by_status",
+				Name: "pinger_events_by_status_total",
 				Help: "Total status number from Pinger events processed",
 			},
 			[]string{"resource", "status"}),
