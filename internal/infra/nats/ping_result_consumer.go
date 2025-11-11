@@ -27,7 +27,7 @@ func (c PingResultConsumer) Consume(msg *nats.Msg) {
 			c.log.Error().Err(err).Msg("error while unmarshalling message")
 			return
 		}
-		re, err := metrics.NewResource(m.GetResource(), float64(m.GetLatency()/1000), m.GetCreatedAt().AsTime())
+		re, err := metrics.NewResource(m.GetResource(), m.GetStatus(), float64(m.GetLatency()/1000), m.GetCreatedAt().AsTime())
 		if err != nil {
 			c.log.Error().Err(err).Msg("error while unmarshalling message")
 			return

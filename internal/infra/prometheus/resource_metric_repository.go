@@ -8,15 +8,22 @@ import (
 )
 
 type ResourceMetricRepository struct {
-	eventsTotal *prometheus.CounterVec
-	latencyHist *prometheus.HistogramVec
-	lastEventTs *prometheus.GaugeVec
+	eventsTotal         *prometheus.CounterVec
+	eventsByStatusTotal *prometheus.CounterVec
+	latencyHist         *prometheus.HistogramVec
+	lastEventTs         *prometheus.GaugeVec
 }
 
 func (rr ResourceMetricRepository) Create(ctx context.Context, r *metrics.Resource) {
-	rr.eventsTotal.WithLabelValues(r.Name()).Inc()
-	rr.latencyHist.WithLabelValues(r.Name()).Observe(r.Seconds())
-	rr.lastEventTs.WithLabelValues(r.Name()).Set(float64(r.CreatedAt().Unix()))
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		rr.eventsTotal.WithLabelValues(r.Name()).Inc()
+		rr.eventsByStatusTotal.WithLabelValues(r.Name(), r.Status()).Inc()
+		rr.latencyHist.WithLabelValues(r.Name()).Observe(r.Seconds())
+		rr.lastEventTs.WithLabelValues(r.Name()).Set(float64(r.CreatedAt().Unix()))
+	}
 }
 
 func NewResourceMetricRepository() *ResourceMetricRepository {
@@ -40,8 +47,14 @@ func NewResourceMetricRepository() *ResourceMetricRepository {
 				Help: "Epoch from last event received by resource",
 			},
 			[]string{"resource"}),
+		eventsByStatusTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "pinger_events_total_by_status",
+				Help: "Total status number from Pinger events processed",
+			},
+			[]string{"resource", "status"}),
 	}
-	prometheus.MustRegister(repo.eventsTotal, repo.latencyHist, repo.lastEventTs)
+	prometheus.MustRegister(repo.eventsTotal, repo.latencyHist, repo.lastEventTs, repo.eventsByStatusTotal)
 
 	return &repo
 }
